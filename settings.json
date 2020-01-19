@@ -1,0 +1,9 @@
+{
+	"cameraIndex": 1,
+	"bufferSize": 1200,
+	"fps": 30,
+	"videoDelaySeconds": 10,
+	"loopedVideoLength": 20,
+	"cameraRotations": 1,
+	"fullscreen": true
+}
