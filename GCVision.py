@@ -18,7 +18,7 @@ C_CAMERA_ROTATIONS = settings["cameraRotations"]
 C_LIVE_VIDEO_X = 20
 C_LIVE_VIDEO_Y = 40
 
-aaaa = []
+frameBuffer = []
 pFront = 0
 pLive = 0
 playingLooped = False
@@ -30,7 +30,7 @@ blackFrame = np.zeros((720, 1280, 3), np.uint8)
 
 cap = cv2.VideoCapture(settings["cameraIndex"])
 
-spacePressed = False
+spacePressedLast = False
 saving = False
 
 cv2.namedWindow("frame", cv2.WINDOW_NORMAL)
@@ -42,7 +42,7 @@ lastTime = time.time()
 k = 0
 fps = 0
 
-def save(startIndex, name, width, height, frameLength):
+def saveClip(startIndex, name, width, height, frameLength):
     global lv
     global playingLooped
     saving = True
@@ -51,12 +51,12 @@ def save(startIndex, name, width, height, frameLength):
     out = cv2.VideoWriter(name + ".avi", fourcc, C_FPS, (width, height))
     for i in range(frameLength):
         index = (C_BUFFER_SIZE + startIndex + i) % C_BUFFER_SIZE
-        if index > len(aaaa) - 1:
+        if index > len(frameBuffer) - 1:
             print("couldn't save video!")
             out.release()
             saving = False
             break
-        saveFrame = aaaa[index]
+        saveFrame = frameBuffer[index]
         out.write(saveFrame)
     out.release()
     print("saved " + name + ".avi, looping")
@@ -72,14 +72,14 @@ while(True):
     ret, rawFrame = cap.read()
     rotFrame = np.rot90(rawFrame, C_CAMERA_ROTATIONS).copy()
 
-    if len(aaaa) < C_BUFFER_SIZE:
-        aaaa.append(rotFrame)
+    if len(frameBuffer) < C_BUFFER_SIZE:
+        frameBuffer.append(rotFrame)
     else:
-        aaaa[pFront] = rotFrame
+        frameBuffer[pFront] = rotFrame
     
     pLive = (C_BUFFER_SIZE + pFront - C_FPS * C_LIVE_DELAY_SECONDS) % C_BUFFER_SIZE
-    if pLive > len(aaaa) - 1: pLive = 0
-    liveFrame = aaaa[pLive]
+    if pLive > len(frameBuffer) - 1: pLive = 0
+    liveFrame = frameBuffer[pLive]
 
     pFront = (pFront + 1) % C_BUFFER_SIZE
 
@@ -93,18 +93,17 @@ while(True):
         k = 0
         lastTime = thisTime
 
-    if keyboard.is_pressed("space") and spacePressed == False:
+    if keyboard.is_pressed("space") and spacePressedLast == False:
         if saving == True:
             print("Already saving a video!")
         else:
             # save a video in another thread
             length = C_FPS * C_LOOP_SECONDS;
             startI = (C_BUFFER_SIZE + pLive - length) % C_BUFFER_SIZE
-            saveThread = threading.Thread(target=save, args=(startI, str(int(lastTime)), liveFrame.shape[1], liveFrame.shape[0], length))
+            saveThread = threading.Thread(target=saveClip, args=(startI, str(int(lastTime)), liveFrame.shape[1], liveFrame.shape[0], length))
             saveThread.start()
-        spacePressed = True;
 
-    spacePressed = keyboard.is_pressed("space");
+    spacePressedLast = keyboard.is_pressed("space");
 
     if playingLooped == True and lv != None:
         if lv.isOpened():
@@ -117,7 +116,7 @@ while(True):
                 displayFrame[C_LIVE_VIDEO_Y:C_LIVE_VIDEO_Y+rawLoopFrame.shape[0], C_LIVE_VIDEO_X+500:C_LIVE_VIDEO_X+500+rawLoopFrame.shape[1], 0:3] = rawLoopFrame
 
     # cv2.rectangle(displayFrame, (0, 0), (480, 20), (0, 0, 0), -1) # note: thickness of -1 fills rectangle
-    cv2.putText(displayFrame, "Frames: " + str(len(aaaa)), (10, 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255))
+    cv2.putText(displayFrame, "Frames: " + str(len(frameBuffer)), (10, 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255))
     cv2.putText(displayFrame, "Front: " + str(pFront), (150, 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255))
     cv2.putText(displayFrame, "Showing: " + str(pLive), (250, 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255))
     cv2.putText(displayFrame, "FPS: " + str(fps), (400, 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255))
