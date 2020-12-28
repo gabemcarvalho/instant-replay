@@ -9,7 +9,6 @@ Delayed webcam playback with options to record and loop clips. Intended use is f
 ## Settings
 The following settings are imported from `settings.json`:  
 **cameraIndex:** index of the camera device to use  
-**bufferSize:** how many frames the program retains in memory at once  
 **fps:** framerate of the whole program  
 **videoDelaySeconds:** how many seconds to delay the camera playback  
 **loopedVideoLength:** number of seconds before the currently displayed frame to save. So if videoDelaySeconds is 10 and loopedVideoLength is also 10, saved videos will be from T-20 to T-20 seconds.  
