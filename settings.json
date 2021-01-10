@@ -7,5 +7,6 @@
 	"videoDelaySeconds": 5,
 	"loopedVideoLength": 2,
 	"fullscreen": false,
-	"fpsOverlay": true
+	"fpsOverlay": true,
+	"capGraphicsFps": true
 }

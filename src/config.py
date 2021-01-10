@@ -13,3 +13,4 @@ LOOP_SECONDS = settings["loopedVideoLength"]
 BUFFER_SIZE = settings["fps"] * (1 + settings["videoDelaySeconds"] + settings["loopedVideoLength"])
 FULLSCREEN = settings["fullscreen"]
 FPS_OVERLAY = settings["fpsOverlay"]
+CAP_GRAPHICS_FPS = settings["capGraphicsFps"]

@@ -46,12 +46,13 @@ def main():
     while(True):
         # limit fps
         current_time = time.perf_counter()
-        time.sleep(max(last_time + 1.0 / CONFIG.TARGET_FPS - current_time - 0.002, 0.0)) # sleep until next frame
-        while True:
-            current_time = time.perf_counter()
-            if current_time - last_time >= 1.0 / CONFIG.TARGET_FPS:
-                break
-        last_time = current_time
+        if CONFIG.CAP_GRAPHICS_FPS:
+            time.sleep(max(last_time + 1.0 / CONFIG.TARGET_FPS - current_time - 0.002, 0.0)) # sleep until next frame
+            while True:
+                current_time = time.perf_counter()
+                if current_time - last_time >= 1.0 / CONFIG.TARGET_FPS:
+                    break
+            last_time = current_time
         
         # read the framerate
         frames_in_last_second += 1
@@ -92,6 +93,7 @@ def main():
         if is_playing_looped == True and looped_video_capture != None:
             if looped_video_capture.isOpened():
                 ret, raw_loop_frame = looped_video_capture.read()
+                raw_loop_frame[:, :, [0, 2]] = raw_loop_frame[:, :, [2, 0]] # swap R and B channels
                 looped_video_current_frame_number += 1
                 if looped_video_current_frame_number == looped_video_capture.get(cv2.CAP_PROP_FRAME_COUNT):
                         looped_video_capture.set(cv2.CAP_PROP_POS_FRAMES, 0)
@@ -121,7 +123,7 @@ def main():
     main_video_stream.stop()
     if looped_video_capture != None:
         if looped_video_capture.isOpened():
-            looped_video_capture.stop();
+            looped_video_capture.release();
 
 def save_clip(frame_buffer, start_index, name, width, height):
         global looped_video_capture
@@ -139,7 +141,8 @@ def save_clip(frame_buffer, start_index, name, width, height):
                 out.release()
                 saving = False
                 break
-            save_frame = frame_buffer[index]
+            save_frame = frame_buffer[index].copy()
+            save_frame[:, :, [0, 2]] = save_frame[:, :, [2, 0]] # swap R and B channels
             out.write(save_frame)
         out.release()
         print("saved " + name + ".avi, looping")
