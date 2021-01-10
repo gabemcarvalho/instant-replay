@@ -3,46 +3,69 @@ import cv2
 import time
 import keyboard
 import threading
+import os
+import pygame
 from src.globalvar import *
 import src.config as CONFIG
 from src.video_stream import VideoStream
 
 def main():
-
+    #print(cv2.videoio_registry.getCameraBackends())
     global looped_video_current_frame_number
     
     frame_buffer = []
     front_frame_number = 0
     showing_frame_number = 0
 
-    black_frame = np.zeros((720, 1280, 3), np.uint8)
-
-    main_video_stream = VideoStream(src=CONFIG.CAMERA_INDEX).start()
-
-    # main_video_capture = cv2.VideoCapture(CONFIG.CAMERA_INDEX)
-    # main_video_capture.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M','J','P','G'))
-    # main_video_capture.set(cv2.CAP_PROP_FPS, 30)
-    # main_video_capture.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-    # main_video_capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 360)
+    main_video_stream = VideoStream(src=CONFIG.CAMERA_INDEX, width=CONFIG.CAMERA_WIDTH, height=CONFIG.CAMERA_HEIGHT).start()
+    saveThread = None
 
     space_pressed_last = False
 
-    cv2.namedWindow("frame", cv2.WINDOW_NORMAL)
-    cv2.setWindowProperty("frame", cv2.WND_PROP_ASPECT_RATIO, cv2.WINDOW_KEEPRATIO)
-    if CONFIG.FULLSCREEN == True:
-        cv2.setWindowProperty("frame", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+    # configure pygame
+    pygame.init()
+    frame_width = CONFIG.CAMERA_WIDTH if (CONFIG.CAMERA_ROTATIONS % 2 == 0) else CONFIG.CAMERA_HEIGHT
+    frame_height = CONFIG.CAMERA_HEIGHT if (CONFIG.CAMERA_ROTATIONS % 2 == 0) else CONFIG.CAMERA_WIDTH
+    frame_size = (frame_width * 2, frame_height)
+    pygame.display.set_caption("Instant Replay by Gabe Carvalho")
+    if CONFIG.FULLSCREEN:
+        screen = pygame.display.set_mode(frame_size, pygame.FULLSCREEN)
+    else:
+        screen = pygame.display.set_mode(frame_size)
+    font = pygame.font.Font("SpaceMono-Regular.ttf", 16)
 
-    last_time = time.time()
+    last_time = time.perf_counter()
+    last_fps_time = last_time
     frames_in_last_second = 0
     real_fps = 0
+    camera_fps = 0
+    
+    if not os.path.exists('clips'):
+        os.makedirs('clips')
 
     while(True):
+        # limit fps
+        current_time = time.perf_counter()
+        time.sleep(max(last_time + 1.0 / CONFIG.TARGET_FPS - current_time - 0.002, 0.0)) # sleep until next frame
         while True:
-            if main_video_stream.frame_is_new:
+            current_time = time.perf_counter()
+            if current_time - last_time >= 1.0 / CONFIG.TARGET_FPS:
                 break
+        last_time = current_time
+        
+        # read the framerate
+        frames_in_last_second += 1
+        if current_time - last_fps_time >= 1.0:
+            real_fps = frames_in_last_second
+            camera_fps = main_video_stream.read_fps()
+            frames_in_last_second = 0
+            last_fps_time = current_time
+        
+        # get the newest frame
         raw_frame = main_video_stream.read()
         
         rotated_frame = np.rot90(raw_frame, CONFIG.CAMERA_ROTATIONS).copy()
+        rotated_frame = raw_frame
 
         if len(frame_buffer) < CONFIG.BUFFER_SIZE:
             frame_buffer.append(rotated_frame)
@@ -53,56 +76,52 @@ def main():
         if showing_frame_number > len(frame_buffer) - 1:
             showing_frame_number = 0
         showing_frame = frame_buffer[showing_frame_number]
-
         front_frame_number = (front_frame_number + 1) % CONFIG.BUFFER_SIZE
-
-        display_frame = black_frame.copy()
-        display_frame[LIVE_VIDEO_POS[1]:LIVE_VIDEO_POS[1]+showing_frame.shape[0], LIVE_VIDEO_POS[0]:LIVE_VIDEO_POS[0]+showing_frame.shape[1], 0:3] = showing_frame
-
-        current_time = time.time()
-        frames_in_last_second += 1
-        if current_time - last_time >= 1:
-            real_fps = frames_in_last_second
-            frames_in_last_second = 0
-            last_time = current_time
-
+        
+        # save a clip
         if keyboard.is_pressed("space") and space_pressed_last == False:
             if saving == True:
                 print("Already saving a video!")
             else:
-                # save a video in another thread
                 start_index = (CONFIG.BUFFER_SIZE + showing_frame_number - CONFIG.TARGET_FPS * CONFIG.LOOP_SECONDS) % CONFIG.BUFFER_SIZE
                 saveThread = threading.Thread(target=save_clip, args=(frame_buffer, start_index, str(int(last_time)), showing_frame.shape[1], showing_frame.shape[0]))
                 saveThread.start()
-
         space_pressed_last = keyboard.is_pressed("space")
 
+        # play looped clip
         if is_playing_looped == True and looped_video_capture != None:
             if looped_video_capture.isOpened():
-                ret, rawLoopFrame = looped_video_capture.read()
+                ret, raw_loop_frame = looped_video_capture.read()
                 looped_video_current_frame_number += 1
                 if looped_video_current_frame_number == looped_video_capture.get(cv2.CAP_PROP_FRAME_COUNT):
                         looped_video_capture.set(cv2.CAP_PROP_POS_FRAMES, 0)
                         looped_video_current_frame_number = 0
                 if ret == True:
-                    display_frame[LIVE_VIDEO_POS[1]:LIVE_VIDEO_POS[1]+rawLoopFrame.shape[0], LIVE_VIDEO_POS[0]+500:LIVE_VIDEO_POS[0]+500+rawLoopFrame.shape[1], 0:3] = rawLoopFrame
+                    # assuming looped video is the same size as the camera stream
+                    loop_surface = pygame.surfarray.make_surface(raw_loop_frame)
+                    screen.blit(loop_surface, (frame_width + 1, 0))
 
-        # cv2.rectangle(display_frame, (0, 0), (480, 20), (0, 0, 0), -1) # note: thickness of -1 fills rectangle
-        cv2.putText(display_frame, "Frames: " + str(len(frame_buffer)), (10, 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255))
-        cv2.putText(display_frame, "Front: " + str(front_frame_number), (150, 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255))
-        cv2.putText(display_frame, "Showing: " + str(showing_frame_number), (250, 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255))
-        cv2.putText(display_frame, "FPS: " + str(real_fps), (400, 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255))
-        cv2.putText(display_frame, "PRESS 'Q' TO QUIT", (500, 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255))
-        cv2.putText(display_frame, "PRESS 'SPACE' TO SAVE 10 SECONDS", (700, 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255))
+        # draw to the screen
+        live_camera_surface = pygame.surfarray.make_surface(showing_frame)
+        screen.blit(live_camera_surface, (0, 0))
+        
+        if CONFIG.FPS_OVERLAY:
+            text_string = " Camera FPS: " + str(camera_fps) + " | Graphics FPS: " + str(real_fps) + " "
+            text_surface = font.render(text_string, True, (0, 0, 0), (255, 255, 255))
+            screen.blit(text_surface, (0, 0))
+        
+        pygame.display.flip()
+        
+        # need some code to lock fps to 30
 
-        cv2.imshow("frame", display_frame)
-
-        if cv2.waitKey(1) & 0xFF == ord('q'):
+        if keyboard.is_pressed("esc"):
             break
-
-    # main_video_capture.release()
+    
+    pygame.display.quit()
     main_video_stream.stop()
-    cv2.destroyAllWindows()
+    if looped_video_capture != None:
+        if looped_video_capture.isOpened():
+            looped_video_capture.stop();
 
 def save_clip(frame_buffer, start_index, name, width, height):
         global looped_video_capture

@@ -1,8 +1,11 @@
 {
 	"cameraIndex": 0,
+	"cameraWidth": 432,
+	"cameraHeight": 240,
+	"cameraRotations": 1,
 	"fps": 30,
 	"videoDelaySeconds": 5,
 	"loopedVideoLength": 2,
-	"cameraRotations": 1,
-	"fullscreen": false
+	"fullscreen": false,
+	"fpsOverlay": true
 }

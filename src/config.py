@@ -4,9 +4,12 @@ with open("settings.json") as f:
     settings = json.load(f)
 
 CAMERA_INDEX = settings["cameraIndex"]
-BUFFER_SIZE = settings["fps"] * (1 + settings["videoDelaySeconds"] + settings["loopedVideoLength"])
+CAMERA_WIDTH = settings["cameraWidth"]
+CAMERA_HEIGHT = settings["cameraHeight"]
+CAMERA_ROTATIONS = settings["cameraRotations"]
 TARGET_FPS = settings["fps"]
 LIVE_DELAY_SECONDS = settings["videoDelaySeconds"]
 LOOP_SECONDS = settings["loopedVideoLength"]
-CAMERA_ROTATIONS = settings["cameraRotations"]
+BUFFER_SIZE = settings["fps"] * (1 + settings["videoDelaySeconds"] + settings["loopedVideoLength"])
 FULLSCREEN = settings["fullscreen"]
+FPS_OVERLAY = settings["fpsOverlay"]
